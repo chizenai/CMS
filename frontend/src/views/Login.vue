@@ -67,7 +67,7 @@ export default {
           this.loading = true
           try {
             const res = await login(this.loginForm)
-            this.login(res.data.token, res.data.user)
+            this.login({ token: res.data.token, userInfo: res.data.user })
             this.$message.success('登录成功')
             this.$router.push('/dashboard')
           } catch (error) {
