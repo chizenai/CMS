@@ -43,8 +43,17 @@ public class AuthController {
             return Result.error("用户不存在");
         }
 
-        if ("123456".equals(password)) {
-        } else if (!passwordEncoder.matches(password, user.getPassword())) {
+        // 支持明文密码和BCrypt加密密码
+        boolean passwordValid = false;
+        if (user.getPassword().startsWith("$2a$") || user.getPassword().startsWith("$2b$")) {
+            // 数据库中的密码是BCrypt加密的
+            passwordValid = passwordEncoder.matches(password, user.getPassword());
+        } else {
+            // 数据库中的密码是明文，直接比较
+            passwordValid = password.equals(user.getPassword());
+        }
+        
+        if (!passwordValid) {
             return Result.error("密码错误");
         }
 
