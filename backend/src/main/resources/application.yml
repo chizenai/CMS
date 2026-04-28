@@ -20,7 +20,7 @@ mybatis-plus:
     log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
 
 jwt:
-  secret: cms-jwt-secret-key-2024
+  secret: cms-jwt-secret-key-2024-secure-key-with-256-bits-length
   expiration: 86400000
 
 logging:
