@@ -44,6 +44,7 @@
             :show-file-list="false"
             :on-success="handleAvatarSuccess"
             :before-upload="beforeAvatarUpload"
+            :headers="uploadHeaders"
             name="file"
           >
             <img v-if="form.cover" :src="form.cover" class="avatar">
@@ -84,6 +85,9 @@ export default {
     return {
       isEdit: false,
       categoryList: [],
+      uploadHeaders: {
+        Authorization: 'Bearer ' + localStorage.getItem('token')
+      },
       form: {
         id: null,
         title: '',

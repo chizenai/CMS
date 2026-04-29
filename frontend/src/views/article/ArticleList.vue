@@ -59,10 +59,14 @@
         </template>
       </el-table-column>
       <el-table-column prop="createTime" label="创建时间" width="180"></el-table-column>
-      <el-table-column label="操作" width="300" fixed="right">
+      <el-table-column label="操作" width="400" fixed="right">
         <template slot-scope="scope">
-          <el-button type="text" @click="handleEdit(scope.row)">编辑</el-button>
           <el-button type="text" @click="handleView(scope.row)">查看</el-button>
+          <el-button
+            v-if="scope.row.status === 0 || scope.row.status === 3"
+            type="text"
+            @click="handleEdit(scope.row)"
+          >编辑</el-button>
           <el-button
             v-if="scope.row.status === 1"
             type="text"
@@ -73,6 +77,16 @@
             type="text"
             @click="handleSubmitAudit(scope.row)"
           >提交审核</el-button>
+          <el-button
+            v-if="scope.row.status === 2"
+            type="text"
+            @click="handleRevoke(scope.row)"
+          >撤销发布</el-button>
+          <el-button
+            v-if="scope.row.status === 3"
+            type="text"
+            @click="handleRevoke(scope.row)"
+          >撤销</el-button>
           <el-button type="text" @click="handleSingleDelete(scope.row)">删除</el-button>
         </template>
       </el-table-column>
@@ -95,7 +109,7 @@
       <el-form :model="auditForm">
         <el-form-item label="审核结果">
           <el-radio-group v-model="auditForm.status">
-            <el-radio :label="2">通过</el-radio>
+            <el-radio :label="2">通过（发布）</el-radio>
             <el-radio :label="3">拒绝</el-radio>
           </el-radio-group>
         </el-form-item>
@@ -148,7 +162,7 @@
 </template>
 
 <script>
-import { getArticleList, deleteArticle, publishArticle, auditArticle, updateArticle } from '@/api/article'
+import { getArticleList, deleteArticle, publishArticle, auditArticle, updateArticle, revokeArticle } from '@/api/article'
 import { getCategoryList } from '@/api/category'
 
 export default {
@@ -256,6 +270,14 @@ export default {
       this.$router.push('/article/add')
     },
     handleEdit(row) {
+      if (row.status === 2) {
+        this.$message.warning('已发布的文章需要先撤销才能编辑')
+        return
+      }
+      if (row.status === 1) {
+        this.$message.warning('待审核的文章不能编辑，请等待审核结果')
+        return
+      }
       this.$router.push(`/article/edit/${row.id}`)
     },
     handleView(row) {
@@ -299,33 +321,31 @@ export default {
         }
       }).catch(() => {})
     },
-    async handleSinglePublish(row) {
-      try {
-        await publishArticle(row.id)
-        this.$message.success('发布成功')
-        this.loadArticleList()
-      } catch (error) {
-        console.error('发布失败:', error)
+    async handleRevoke(row) {
+      if (row.status !== 2 && row.status !== 3) {
+        this.$message.warning('只有已发布或已拒绝状态的文章才能撤销')
+        return
       }
-    },
-    handlePublish() {
-      this.$confirm('确定要发布选中的文章吗？', '提示', {
+      const message = row.status === 2 ? '撤销发布后文章将变为草稿状态，确定要撤销吗？' : '撤销后文章将变为草稿状态，确定要撤销吗？'
+      this.$confirm(message, '提示', {
         confirmButtonText: '确定',
         cancelButtonText: '取消',
         type: 'warning'
       }).then(async () => {
         try {
-          for (const id of this.selectedIds) {
-            await publishArticle(id)
-          }
-          this.$message.success('批量发布成功')
+          await revokeArticle(row.id)
+          this.$message.success('撤销成功，文章已变为草稿状态')
           this.loadArticleList()
         } catch (error) {
-          console.error('批量发布失败:', error)
+          console.error('撤销失败:', error)
         }
       }).catch(() => {})
     },
     handleAudit(row) {
+      if (row.status !== 1) {
+        this.$message.warning('只有待审核状态的文章才能审核')
+        return
+      }
       this.currentAuditId = row.id
       this.auditForm = {
         status: 2,
@@ -340,7 +360,8 @@ export default {
           status: this.auditForm.status,
           comment: this.auditForm.comment
         })
-        this.$message.success('审核成功')
+        const message = this.auditForm.status === 2 ? '审核通过，文章已发布' : '审核拒绝'
+        this.$message.success(message)
         this.auditDialogVisible = false
         this.loadArticleList()
       } catch (error) {

@@ -3,7 +3,9 @@ package com.cms.controller;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.cms.common.Result;
+import com.cms.entity.Category;
 import com.cms.entity.Material;
+import com.cms.mapper.CategoryMapper;
 import com.cms.mapper.MaterialMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
@@ -18,13 +20,16 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/material")
 public class MaterialController {
 
     private final MaterialMapper materialMapper;
+    private final CategoryMapper categoryMapper;
 
     @Value("${file.upload.path:uploads/}")
     private String uploadPath;
@@ -32,8 +37,9 @@ public class MaterialController {
     @Value("${file.access.prefix:/uploads/}")
     private String accessPrefix;
 
-    public MaterialController(MaterialMapper materialMapper) {
+    public MaterialController(MaterialMapper materialMapper, CategoryMapper categoryMapper) {
         this.materialMapper = materialMapper;
+        this.categoryMapper = categoryMapper;
     }
 
     @PostMapping("/upload")
@@ -98,6 +104,25 @@ public class MaterialController {
         }
     }
 
+    private void setCategoryName(List<Material> materials) {
+        Set<Long> categoryIds = materials.stream()
+                .map(Material::getCategoryId)
+                .filter(id -> id != null)
+                .collect(Collectors.toSet());
+        
+        if (!categoryIds.isEmpty()) {
+            List<Category> categories = categoryMapper.selectBatchIds(categoryIds);
+            Map<Long, String> categoryMap = categories.stream()
+                    .collect(Collectors.toMap(Category::getId, Category::getName));
+            
+            materials.forEach(material -> {
+                if (material.getCategoryId() != null) {
+                    material.setCategoryName(categoryMap.get(material.getCategoryId()));
+                }
+            });
+        }
+    }
+
     @GetMapping("/page")
     public Result<Page<Material>> page(
             @RequestParam(defaultValue = "1") Integer pageNum,
@@ -121,6 +146,7 @@ public class MaterialController {
         
         wrapper.orderByDesc(Material::getCreateTime);
         Page<Material> result = materialMapper.selectPage(page, wrapper);
+        setCategoryName(result.getRecords());
         return Result.success(result);
     }
 
@@ -133,6 +159,7 @@ public class MaterialController {
         }
         wrapper.orderByDesc(Material::getCreateTime);
         List<Material> list = materialMapper.selectList(wrapper);
+        setCategoryName(list);
         return Result.success(list);
     }
 

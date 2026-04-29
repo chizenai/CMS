@@ -45,6 +45,13 @@ export function publishArticle(id) {
   })
 }
 
+export function revokeArticle(id) {
+  return request({
+    url: `/article/revoke/${id}`,
+    method: 'put'
+  })
+}
+
 export function auditArticle(data) {
   return request({
     url: '/article/audit',
