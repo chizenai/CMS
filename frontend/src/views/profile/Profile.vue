@@ -38,9 +38,8 @@
                 <el-form-item label="头像" prop="avatar">
                   <el-upload
                     class="avatar-uploader"
-                    :action="uploadUrl"
+                    :http-request="customAvatarUpload"
                     :show-file-list="false"
-                    :on-success="handleAvatarSuccess"
                     :before-upload="beforeAvatarUpload"
                   >
                     <img v-if="basicForm.avatar" :src="basicForm.avatar" class="avatar">
@@ -114,7 +113,6 @@ export default {
 
     return {
       activeTab: 'basic',
-      uploadUrl: '/api/material/upload',
       basicForm: {
         nickname: '',
         avatar: '',
@@ -166,13 +164,6 @@ export default {
         console.error('加载个人信息失败:', error)
       }
     },
-    handleAvatarSuccess(response, file, fileList) {
-      if (response.code === 200) {
-        this.basicForm.avatar = response.data.url
-      } else {
-        this.$message.error('上传失败')
-      }
-    },
     beforeAvatarUpload(file) {
       const isJPG = file.type === 'image/jpeg' || file.type === 'image/png'
       const isLt2M = file.size / 1024 / 1024 < 2
@@ -184,6 +175,24 @@ export default {
         this.$message.error('上传头像图片大小不能超过 2MB!')
       }
       return isJPG && isLt2M
+    },
+    async customAvatarUpload(options) {
+      const { file, onSuccess, onError } = options
+      try {
+        const res = await uploadFile(file)
+        if (res.code === 200) {
+          this.basicForm.avatar = res.data.url
+          this.$message.success('头像上传成功')
+          onSuccess(res)
+        } else {
+          this.$message.error(res.message || '上传失败')
+          onError(new Error(res.message || '上传失败'))
+        }
+      } catch (error) {
+        console.error('头像上传失败:', error)
+        this.$message.error('上传失败: ' + (error.message || '未知错误'))
+        onError(error)
+      }
     },
     async handleSaveBasic() {
       this.$refs.basicFormRef.validate(async (valid) => {
