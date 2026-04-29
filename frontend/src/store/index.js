@@ -3,10 +3,22 @@ import Vuex from 'vuex'
 
 Vue.use(Vuex)
 
+function safeParseJSON(str, defaultValue = {}) {
+  if (!str || str === 'undefined' || str === 'null') {
+    return defaultValue
+  }
+  try {
+    return JSON.parse(str)
+  } catch (e) {
+    console.warn('Failed to parse JSON:', str, e)
+    return defaultValue
+  }
+}
+
 export default new Vuex.Store({
   state: {
     token: localStorage.getItem('token') || '',
-    userInfo: JSON.parse(localStorage.getItem('userInfo') || '{}')
+    userInfo: safeParseJSON(localStorage.getItem('userInfo'))
   },
   getters: {
     token: state => state.token,
