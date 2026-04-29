@@ -3,14 +3,14 @@ import Vuex from 'vuex'
 
 Vue.use(Vuex)
 
-function safeParseJSON(str, defaultValue = {}) {
+function safeJsonParse(str, defaultValue = {}) {
   if (!str || str === 'undefined' || str === 'null') {
     return defaultValue
   }
   try {
     return JSON.parse(str)
   } catch (e) {
-    console.warn('Failed to parse JSON:', str, e)
+    console.warn('JSON 解析失败，使用默认值:', str)
     return defaultValue
   }
 }
@@ -18,7 +18,7 @@ function safeParseJSON(str, defaultValue = {}) {
 export default new Vuex.Store({
   state: {
     token: localStorage.getItem('token') || '',
-    userInfo: safeParseJSON(localStorage.getItem('userInfo'))
+    userInfo: safeJsonParse(localStorage.getItem('userInfo'), {})
   },
   getters: {
     token: state => state.token,
@@ -26,12 +26,20 @@ export default new Vuex.Store({
   },
   mutations: {
     SET_TOKEN(state, token) {
-      state.token = token
-      localStorage.setItem('token', token)
+      state.token = token || ''
+      if (token) {
+        localStorage.setItem('token', token)
+      } else {
+        localStorage.removeItem('token')
+      }
     },
     SET_USER_INFO(state, userInfo) {
-      state.userInfo = userInfo
-      localStorage.setItem('userInfo', JSON.stringify(userInfo))
+      state.userInfo = userInfo || {}
+      if (userInfo && Object.keys(userInfo).length > 0) {
+        localStorage.setItem('userInfo', JSON.stringify(userInfo))
+      } else {
+        localStorage.removeItem('userInfo')
+      }
     },
     LOGOUT(state) {
       state.token = ''
