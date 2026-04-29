@@ -50,6 +50,7 @@ public class SecurityConfig {
                 .antMatchers("/api/public/**").permitAll()
                 .antMatchers("/uploads/**").permitAll()
                 .antMatchers("/api/material/upload").permitAll()
+                .antMatchers("/api/material/upload-multiple").permitAll()
                 .anyRequest().authenticated();
 
         http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
