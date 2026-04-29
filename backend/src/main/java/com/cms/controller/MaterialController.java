@@ -42,6 +42,43 @@ public class MaterialController {
         this.categoryMapper = categoryMapper;
     }
 
+    private Map<String, Object> saveSingleFile(MultipartFile file) throws IOException {
+        String originalFilename = file.getOriginalFilename();
+        String fileExtension = originalFilename != null ? 
+            (originalFilename.contains(".") ? originalFilename.substring(originalFilename.lastIndexOf(".")) : "") : "";
+        String newFileName = UUID.randomUUID().toString() + fileExtension;
+        
+        Path uploadDir = Paths.get(uploadPath);
+        if (!Files.exists(uploadDir)) {
+            Files.createDirectories(uploadDir);
+        }
+        
+        Path filePath = uploadDir.resolve(newFileName);
+        file.transferTo(filePath);
+        
+        String fileType = getFileType(fileExtension);
+        String fileUrl = accessPrefix + newFileName;
+        
+        Material material = new Material();
+        material.setName(originalFilename);
+        material.setType(fileType);
+        material.setUrl(fileUrl);
+        material.setSize(file.getSize());
+        material.setCreateTime(LocalDateTime.now());
+        material.setUpdateTime(LocalDateTime.now());
+        materialMapper.insert(material);
+        
+        Map<String, Object> result = new HashMap<>();
+        result.put("id", material.getId());
+        result.put("name", originalFilename);
+        result.put("url", fileUrl);
+        result.put("type", fileType);
+        result.put("size", file.getSize());
+        result.put("thumbnail", fileType.equals("image") ? fileUrl : null);
+        
+        return result;
+    }
+
     @PostMapping("/upload")
     public Result<Map<String, Object>> uploadFile(@RequestParam("file") MultipartFile file) {
         if (file.isEmpty()) {
@@ -49,43 +86,40 @@ public class MaterialController {
         }
 
         try {
-            String originalFilename = file.getOriginalFilename();
-            String fileExtension = originalFilename != null ? 
-                originalFilename.substring(originalFilename.lastIndexOf(".")) : "";
-            String newFileName = UUID.randomUUID().toString() + fileExtension;
-            
-            Path uploadDir = Paths.get(uploadPath);
-            if (!Files.exists(uploadDir)) {
-                Files.createDirectories(uploadDir);
-            }
-            
-            Path filePath = uploadDir.resolve(newFileName);
-            file.transferTo(filePath);
-            
-            String fileType = getFileType(fileExtension);
-            String fileUrl = accessPrefix + newFileName;
-            
-            Material material = new Material();
-            material.setName(originalFilename);
-            material.setType(fileType);
-            material.setUrl(fileUrl);
-            material.setSize(file.getSize());
-            material.setCreateTime(LocalDateTime.now());
-            material.setUpdateTime(LocalDateTime.now());
-            materialMapper.insert(material);
-            
-            Map<String, Object> result = new HashMap<>();
-            result.put("id", material.getId());
-            result.put("name", originalFilename);
-            result.put("url", fileUrl);
-            result.put("type", fileType);
-            result.put("size", file.getSize());
-            
+            Map<String, Object> result = saveSingleFile(file);
             return Result.success(result);
         } catch (IOException e) {
             e.printStackTrace();
             return Result.error("文件上传失败: " + e.getMessage());
         }
+    }
+
+    @PostMapping("/upload-multi")
+    public Result<List<Map<String, Object>>> uploadMultipleFiles(@RequestParam("files") MultipartFile[] files) {
+        if (files == null || files.length == 0) {
+            return Result.error("文件不能为空");
+        }
+
+        List<Map<String, Object>> results = new java.util.ArrayList<>();
+        List<String> errors = new java.util.ArrayList<>();
+
+        for (MultipartFile file : files) {
+            if (!file.isEmpty()) {
+                try {
+                    Map<String, Object> result = saveSingleFile(file);
+                    results.add(result);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                    errors.add(file.getOriginalFilename() + ": " + e.getMessage());
+                }
+            }
+        }
+
+        if (results.isEmpty() && !errors.isEmpty()) {
+            return Result.error("所有文件上传失败: " + String.join("; ", errors));
+        }
+
+        return Result.success(results);
     }
 
     private String getFileType(String extension) {

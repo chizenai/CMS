@@ -8,6 +8,14 @@ export function getArticleList(params) {
   })
 }
 
+export function getPendingArticles(params) {
+  return request({
+    url: '/article/pending',
+    method: 'get',
+    params
+  })
+}
+
 export function getArticleById(id) {
   return request({
     url: `/article/${id}`,
@@ -38,6 +46,14 @@ export function deleteArticle(id) {
   })
 }
 
+export function submitForAudit(id, data) {
+  return request({
+    url: `/article/submit/${id}`,
+    method: 'post',
+    data
+  })
+}
+
 export function publishArticle(id) {
   return request({
     url: `/article/publish/${id}`,
@@ -55,6 +71,14 @@ export function revokeArticle(id) {
 export function auditArticle(data) {
   return request({
     url: '/article/audit',
+    method: 'put',
+    data
+  })
+}
+
+export function batchAudit(data) {
+  return request({
+    url: '/article/batch-audit',
     method: 'put',
     data
   })

@@ -4,9 +4,14 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.cms.common.Result;
 import com.cms.entity.Article;
+import com.cms.entity.AuditRecord;
 import com.cms.entity.Category;
+import com.cms.entity.Notification;
 import com.cms.mapper.ArticleMapper;
 import com.cms.mapper.CategoryMapper;
+import com.cms.service.AuditRecordService;
+import com.cms.service.NotificationService;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -21,10 +26,17 @@ public class ArticleController {
 
     private final ArticleMapper articleMapper;
     private final CategoryMapper categoryMapper;
+    private final AuditRecordService auditRecordService;
+    private final NotificationService notificationService;
 
-    public ArticleController(ArticleMapper articleMapper, CategoryMapper categoryMapper) {
+    public ArticleController(ArticleMapper articleMapper, 
+                             CategoryMapper categoryMapper,
+                             AuditRecordService auditRecordService,
+                             NotificationService notificationService) {
         this.articleMapper = articleMapper;
         this.categoryMapper = categoryMapper;
+        this.auditRecordService = auditRecordService;
+        this.notificationService = notificationService;
     }
 
     @GetMapping("/page")
@@ -78,6 +90,15 @@ public class ArticleController {
         return Result.success(result);
     }
 
+    @GetMapping("/pending")
+    public Result<Page<Article>> getPendingArticles(
+            @RequestParam(defaultValue = "1") Integer pageNum,
+            @RequestParam(defaultValue = "10") Integer pageSize,
+            @RequestParam(required = false) String title,
+            @RequestParam(required = false) Long categoryId) {
+        return page(pageNum, pageSize, title, categoryId, 1);
+    }
+
     @GetMapping("/{id}")
     public Result<Article> getById(@PathVariable Long id) {
         Article article = articleMapper.selectById(id);
@@ -107,6 +128,37 @@ public class ArticleController {
     public Result<Boolean> delete(@PathVariable Long id) {
         int result = articleMapper.deleteById(id);
         return Result.success(result > 0);
+    }
+
+    @PostMapping("/submit/{id}")
+    @Transactional
+    public Result<Boolean> submitForAudit(@PathVariable Long id, @RequestBody(required = false) Map<String, Object> params) {
+        Article article = articleMapper.selectById(id);
+        if (article == null) {
+            return Result.error("文章不存在");
+        }
+        if (article.getStatus() != 0) {
+            return Result.error("只有草稿状态的文章才能提交审核");
+        }
+        
+        article.setStatus(1);
+        article.setUpdateTime(LocalDateTime.now());
+        articleMapper.updateById(article);
+        
+        Long submitterId = null;
+        String submitterName = null;
+        if (params != null) {
+            if (params.containsKey("submitterId")) {
+                submitterId = Long.valueOf(params.get("submitterId").toString());
+            }
+            if (params.containsKey("submitterName")) {
+                submitterName = (String) params.get("submitterName");
+            }
+        }
+        
+        auditRecordService.createSubmitRecord(id, submitterId, submitterName);
+        
+        return Result.success(true);
     }
 
     @PutMapping("/publish/{id}")
@@ -145,10 +197,13 @@ public class ArticleController {
     }
 
     @PutMapping("/audit")
+    @Transactional
     public Result<Boolean> audit(@RequestBody Map<String, Object> params) {
         Long id = Long.valueOf(params.get("id").toString());
         Integer status = Integer.valueOf(params.get("status").toString());
         String comment = (String) params.get("comment");
+        Long auditorId = params.containsKey("auditorId") ? Long.valueOf(params.get("auditorId").toString()) : null;
+        String auditorName = (String) params.get("auditorName");
 
         Article existingArticle = articleMapper.selectById(id);
         if (existingArticle == null) {
@@ -168,6 +223,66 @@ public class ArticleController {
             article.setPublishTime(LocalDateTime.now());
         }
         int result = articleMapper.updateById(article);
+        
+        if (result > 0) {
+            List<AuditRecord> records = auditRecordService.getRecordsByArticleId(id);
+            if (!records.isEmpty()) {
+                AuditRecord latestRecord = records.get(0);
+                auditRecordService.updateAuditResult(latestRecord.getId(), auditorId, auditorName, 
+                        status == 2 ? 1 : 2, comment);
+                
+                if (latestRecord.getSubmitterId() != null) {
+                    String title = status == 2 ? "文章审核通过" : "文章审核拒绝";
+                    String content = "您的文章《" + existingArticle.getTitle() + "》" + 
+                            (status == 2 ? "已通过审核并发布。" : "被拒绝，原因：" + comment);
+                    notificationService.createAuditNotification(title, content, 
+                            latestRecord.getSubmitterId(), latestRecord.getSubmitterName(), 
+                            "article", id);
+                }
+            }
+        }
+        
         return Result.success(result > 0);
+    }
+
+    @PutMapping("/batch-audit")
+    @Transactional
+    public Result<Map<String, Object>> batchAudit(@RequestBody Map<String, Object> params) {
+        @SuppressWarnings("unchecked")
+        List<Long> ids = (List<Long>) params.get("ids");
+        Integer status = Integer.valueOf(params.get("status").toString());
+        String comment = (String) params.get("comment");
+        Long auditorId = params.containsKey("auditorId") ? Long.valueOf(params.get("auditorId").toString()) : null;
+        String auditorName = (String) params.get("auditorName");
+        
+        int successCount = 0;
+        int failCount = 0;
+        
+        for (Long id : ids) {
+            try {
+                Map<String, Object> auditParams = new java.util.HashMap<>();
+                auditParams.put("id", id);
+                auditParams.put("status", status);
+                auditParams.put("comment", comment);
+                if (auditorId != null) auditParams.put("auditorId", auditorId);
+                if (auditorName != null) auditParams.put("auditorName", auditorName);
+                
+                Result<Boolean> result = audit(auditParams);
+                if (result.getCode() == 200 && result.getData()) {
+                    successCount++;
+                } else {
+                    failCount++;
+                }
+            } catch (Exception e) {
+                failCount++;
+            }
+        }
+        
+        Map<String, Object> result = new java.util.HashMap<>();
+        result.put("successCount", successCount);
+        result.put("failCount", failCount);
+        result.put("total", ids.size());
+        
+        return Result.success(result);
     }
 }

@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.cms.common.Result;
 import com.cms.entity.User;
 import com.cms.mapper.UserMapper;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
@@ -107,6 +108,88 @@ public class UserController {
         user.setPassword(passwordEncoder.encode(newPassword));
         user.setUpdateTime(LocalDateTime.now());
         int result = userMapper.updateById(user);
+        return Result.success(result > 0);
+    }
+
+    @GetMapping("/profile/info")
+    public Result<User> getProfile(Authentication authentication) {
+        String username = authentication.getName();
+        User user = userMapper.selectOne(
+                new LambdaQueryWrapper<User>().eq(User::getUsername, username)
+        );
+        if (user != null) {
+            user.setPassword(null);
+        }
+        return Result.success(user);
+    }
+
+    @PutMapping("/profile/info")
+    public Result<Boolean> updateProfile(Authentication authentication, @RequestBody User user) {
+        String username = authentication.getName();
+        User existingUser = userMapper.selectOne(
+                new LambdaQueryWrapper<User>().eq(User::getUsername, username)
+        );
+        
+        if (existingUser == null) {
+            return Result.error("用户不存在");
+        }
+        
+        User updateUser = new User();
+        updateUser.setId(existingUser.getId());
+        
+        if (user.getNickname() != null) {
+            updateUser.setNickname(user.getNickname());
+        }
+        if (user.getEmail() != null) {
+            updateUser.setEmail(user.getEmail());
+        }
+        if (user.getPhone() != null) {
+            updateUser.setPhone(user.getPhone());
+        }
+        if (user.getAvatar() != null) {
+            updateUser.setAvatar(user.getAvatar());
+        }
+        
+        updateUser.setUpdateTime(LocalDateTime.now());
+        int result = userMapper.updateById(updateUser);
+        return Result.success(result > 0);
+    }
+
+    @PutMapping("/profile/password")
+    public Result<Boolean> updatePassword(Authentication authentication, @RequestBody Map<String, String> params) {
+        String username = authentication.getName();
+        User existingUser = userMapper.selectOne(
+                new LambdaQueryWrapper<User>().eq(User::getUsername, username)
+        );
+        
+        if (existingUser == null) {
+            return Result.error("用户不存在");
+        }
+        
+        String oldPassword = params.get("oldPassword");
+        String newPassword = params.get("newPassword");
+        
+        if (oldPassword == null || newPassword == null) {
+            return Result.error("密码不能为空");
+        }
+        
+        boolean passwordValid = false;
+        if (existingUser.getPassword().startsWith("$2a$") || existingUser.getPassword().startsWith("$2b$")) {
+            passwordValid = passwordEncoder.matches(oldPassword, existingUser.getPassword());
+        } else {
+            passwordValid = oldPassword.equals(existingUser.getPassword());
+        }
+        
+        if (!passwordValid) {
+            return Result.error("原密码错误");
+        }
+        
+        User updateUser = new User();
+        updateUser.setId(existingUser.getId());
+        updateUser.setPassword(passwordEncoder.encode(newPassword));
+        updateUser.setUpdateTime(LocalDateTime.now());
+        
+        int result = userMapper.updateById(updateUser);
         return Result.success(result > 0);
     }
 }
