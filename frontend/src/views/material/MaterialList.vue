@@ -2,32 +2,94 @@
   <div class="material-list-container">
     <div class="card-box">
       <h3>素材管理</h3>
-      <div class="material-grid">
-        <div v-for="material in materialList" :key="material.id" class="material-item">
-          <div class="material-preview">
-            <i v-if="material.type === 'image'" class="el-icon-picture"></i>
-            <i v-else-if="material.type === 'video'" class="el-icon-video-camera"></i>
-            <i v-else class="el-icon-document"></i>
-          </div>
-          <div class="material-info">
-            <p class="material-name">{{ material.name }}</p>
-            <p class="material-type">{{ material.type }}</p>
-          </div>
-        </div>
-      </div>
+      <el-table :data="materialList" border>
+        <el-table-column prop="id" label="ID" width="80"></el-table-column>
+        <el-table-column prop="name" label="文件名称" min-width="200"></el-table-column>
+        <el-table-column prop="type" label="类型" width="100">
+          <template slot-scope="scope">
+            <el-tag v-if="scope.row.type === 'image'" type="success">图片</el-tag>
+            <el-tag v-else-if="scope.row.type === 'video'" type="primary">视频</el-tag>
+            <el-tag v-else-if="scope.row.type === 'audio'" type="warning">音频</el-tag>
+            <el-tag v-else type="info">文件</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="categoryName" label="栏目" width="120">
+          <template slot-scope="scope">
+            {{ scope.row.categoryName || '-' }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="size" label="大小" width="120">
+          <template slot-scope="scope">
+            {{ formatSize(scope.row.size) }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="url" label="预览" width="150">
+          <template slot-scope="scope">
+            <el-image
+              v-if="scope.row.type === 'image'"
+              :src="scope.row.url"
+              style="width: 60px; height: 60px;"
+              fit="cover"
+              :preview-src-list="[scope.row.url]"
+            ></el-image>
+            <span v-else>{{ scope.row.type }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="createTime" label="创建时间" width="180"></el-table-column>
+        <el-table-column label="操作" width="150">
+          <template slot-scope="scope">
+            <el-button type="text" @click="handleView(scope.row)">查看</el-button>
+            <el-button type="text" @click="handleDelete(scope.row)">删除</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
       <el-empty v-if="materialList.length === 0" description="暂无素材"></el-empty>
     </div>
+
+    <el-dialog title="查看素材" :visible.sync="viewDialogVisible" width="600px">
+      <el-descriptions :column="2" border>
+        <el-descriptions-item label="ID">{{ currentMaterial.id }}</el-descriptions-item>
+        <el-descriptions-item label="文件名称">{{ currentMaterial.name }}</el-descriptions-item>
+        <el-descriptions-item label="类型">
+          <el-tag v-if="currentMaterial.type === 'image'" type="success">图片</el-tag>
+          <el-tag v-else-if="currentMaterial.type === 'video'" type="primary">视频</el-tag>
+          <el-tag v-else-if="currentMaterial.type === 'audio'" type="warning">音频</el-tag>
+          <el-tag v-else type="info">文件</el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="栏目">{{ currentMaterial.categoryName || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="大小">{{ formatSize(currentMaterial.size) }}</el-descriptions-item>
+        <el-descriptions-item label="创建时间">{{ currentMaterial.createTime }}</el-descriptions-item>
+      </el-descriptions>
+      <div v-if="currentMaterial.type === 'image' && currentMaterial.url" style="margin-top: 20px;">
+        <label>预览：</label>
+        <el-image
+          :src="currentMaterial.url"
+          style="max-width: 100%; max-height: 400px; margin-top: 10px;"
+          fit="contain"
+          :preview-src-list="[currentMaterial.url]"
+        ></el-image>
+      </div>
+      <div v-if="currentMaterial.url" style="margin-top: 20px;">
+        <label>访问地址：</label>
+        <el-input :value="currentMaterial.url" readonly style="margin-top: 10px;"></el-input>
+      </div>
+      <span slot="footer" class="dialog-footer">
+        <el-button @click="viewDialogVisible = false">关闭</el-button>
+      </span>
+    </el-dialog>
   </div>
 </template>
 
 <script>
-import { getMaterialAll } from '@/api/material'
+import { getMaterialAll, deleteMaterial } from '@/api/material'
 
 export default {
   name: 'MaterialList',
   data() {
     return {
-      materialList: []
+      materialList: [],
+      viewDialogVisible: false,
+      currentMaterial: {}
     }
   },
   created() {
@@ -41,6 +103,34 @@ export default {
       } catch (error) {
         console.error('加载数据失败:', error)
       }
+    },
+    formatSize(size) {
+      if (!size) return '-'
+      if (size < 1024) {
+        return size + ' B'
+      } else if (size < 1024 * 1024) {
+        return (size / 1024).toFixed(2) + ' KB'
+      } else {
+        return (size / (1024 * 1024)).toFixed(2) + ' MB'
+      }
+    },
+    handleView(row) {
+      this.currentMaterial = { ...row }
+      this.viewDialogVisible = true
+    },
+    handleDelete(row) {
+      this.$confirm('确定要删除这个素材吗？', '提示', {
+        type: 'warning'
+      }).then(async () => {
+        try {
+          await deleteMaterial(row.id)
+          this.$message.success('删除成功')
+          this.loadData()
+        } catch (error) {
+          console.error('删除失败:', error)
+          this.$message.error('删除失败')
+        }
+      }).catch(() => {})
     }
   }
 }
@@ -49,50 +139,5 @@ export default {
 <style scoped>
 .material-list-container {
   padding: 0;
-}
-
-.material-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 20px;
-  margin-top: 20px;
-}
-
-.material-item {
-  border: 1px solid #e4e7ed;
-  border-radius: 4px;
-  overflow: hidden;
-}
-
-.material-preview {
-  height: 150px;
-  background: #f5f7fa;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.material-preview i {
-  font-size: 48px;
-  color: #c0c4cc;
-}
-
-.material-info {
-  padding: 10px;
-}
-
-.material-name {
-  font-size: 14px;
-  color: #303133;
-  margin: 0 0 5px 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.material-type {
-  font-size: 12px;
-  color: #909399;
-  margin: 0;
 }
 </style>

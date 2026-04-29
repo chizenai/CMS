@@ -104,10 +104,34 @@ public class ArticleController {
 
     @PutMapping("/publish/{id}")
     public Result<Boolean> publish(@PathVariable Long id) {
+        Article existingArticle = articleMapper.selectById(id);
+        if (existingArticle == null) {
+            return Result.error("文章不存在");
+        }
+        if (existingArticle.getStatus() != 1) {
+            return Result.error("只有待审核状态的文章才能发布");
+        }
         Article article = new Article();
         article.setId(id);
         article.setStatus(2);
         article.setPublishTime(LocalDateTime.now());
+        article.setUpdateTime(LocalDateTime.now());
+        int result = articleMapper.updateById(article);
+        return Result.success(result > 0);
+    }
+
+    @PutMapping("/revoke/{id}")
+    public Result<Boolean> revoke(@PathVariable Long id) {
+        Article existingArticle = articleMapper.selectById(id);
+        if (existingArticle == null) {
+            return Result.error("文章不存在");
+        }
+        if (existingArticle.getStatus() != 2 && existingArticle.getStatus() != 3) {
+            return Result.error("只有已发布或已拒绝状态的文章才能撤销");
+        }
+        Article article = new Article();
+        article.setId(id);
+        article.setStatus(0);
         article.setUpdateTime(LocalDateTime.now());
         int result = articleMapper.updateById(article);
         return Result.success(result > 0);
@@ -119,12 +143,23 @@ public class ArticleController {
         Integer status = Integer.valueOf(params.get("status").toString());
         String comment = (String) params.get("comment");
 
+        Article existingArticle = articleMapper.selectById(id);
+        if (existingArticle == null) {
+            return Result.error("文章不存在");
+        }
+        if (existingArticle.getStatus() != 1) {
+            return Result.error("只有待审核状态的文章才能审核");
+        }
+
         Article article = new Article();
         article.setId(id);
         article.setStatus(status);
         article.setAuditComment(comment);
         article.setAuditTime(LocalDateTime.now());
         article.setUpdateTime(LocalDateTime.now());
+        if (status == 2) {
+            article.setPublishTime(LocalDateTime.now());
+        }
         int result = articleMapper.updateById(article);
         return Result.success(result > 0);
     }
