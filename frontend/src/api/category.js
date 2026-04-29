@@ -7,6 +7,13 @@ export function getCategoryList() {
   })
 }
 
+export function getCategoryAll() {
+  return request({
+    url: '/category/list',
+    method: 'get'
+  })
+}
+
 export function getCategoryTree() {
   return request({
     url: '/category/tree',

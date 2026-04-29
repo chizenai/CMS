@@ -38,3 +38,31 @@ export function deleteMaterial(id) {
     method: 'delete'
   })
 }
+
+export function uploadFile(file) {
+  const formData = new FormData()
+  formData.append('file', file)
+  return request({
+    url: '/material/upload',
+    method: 'post',
+    data: formData,
+    headers: {
+      'Content-Type': 'multipart/form-data'
+    }
+  })
+}
+
+export function uploadMultipleFiles(files) {
+  const formData = new FormData()
+  for (let i = 0; i < files.length; i++) {
+    formData.append('files', files[i])
+  }
+  return request({
+    url: '/material/upload-multiple',
+    method: 'post',
+    data: formData,
+    headers: {
+      'Content-Type': 'multipart/form-data'
+    }
+  })
+}
