@@ -4,21 +4,27 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.cms.common.Result;
 import com.cms.entity.Article;
+import com.cms.entity.Category;
 import com.cms.mapper.ArticleMapper;
+import com.cms.mapper.CategoryMapper;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/article")
 public class ArticleController {
 
     private final ArticleMapper articleMapper;
+    private final CategoryMapper categoryMapper;
 
-    public ArticleController(ArticleMapper articleMapper) {
+    public ArticleController(ArticleMapper articleMapper, CategoryMapper categoryMapper) {
         this.articleMapper = articleMapper;
+        this.categoryMapper = categoryMapper;
     }
 
     @GetMapping("/page")
@@ -44,6 +50,24 @@ public class ArticleController {
         
         wrapper.orderByDesc(Article::getCreateTime);
         Page<Article> result = articleMapper.selectPage(page, wrapper);
+        
+        Set<Long> categoryIds = result.getRecords().stream()
+                .map(Article::getCategoryId)
+                .filter(id -> id != null)
+                .collect(Collectors.toSet());
+        
+        if (!categoryIds.isEmpty()) {
+            List<Category> categories = categoryMapper.selectBatchIds(categoryIds);
+            Map<Long, String> categoryMap = categories.stream()
+                    .collect(Collectors.toMap(Category::getId, Category::getName));
+            
+            result.getRecords().forEach(article -> {
+                if (article.getCategoryId() != null) {
+                    article.setCategoryName(categoryMap.get(article.getCategoryId()));
+                }
+            });
+        }
+        
         return Result.success(result);
     }
 
