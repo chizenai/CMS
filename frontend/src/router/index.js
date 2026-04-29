@@ -86,16 +86,46 @@ const router = new VueRouter({
   routes
 })
 
+function isValidToken(token) {
+  if (!token || token === 'undefined' || token === 'null') {
+    return false
+  }
+  try {
+    const parts = token.split('.')
+    if (parts.length !== 3) {
+      return false
+    }
+    const payload = JSON.parse(atob(parts[1]))
+    if (payload.exp && payload.exp * 1000 < Date.now()) {
+      return false
+    }
+    return true
+  } catch (e) {
+    return true
+  }
+}
+
+function clearInvalidAuth() {
+  localStorage.removeItem('token')
+  localStorage.removeItem('userInfo')
+}
+
 router.beforeEach((to, from, next) => {
   const token = localStorage.getItem('token')
+  const hasValidToken = isValidToken(token)
+  
+  if (!hasValidToken && token) {
+    clearInvalidAuth()
+  }
+  
   if (to.path === '/login') {
-    if (token) {
+    if (hasValidToken) {
       next('/dashboard')
     } else {
       next()
     }
   } else {
-    if (token) {
+    if (hasValidToken) {
       next()
     } else {
       next('/login')
