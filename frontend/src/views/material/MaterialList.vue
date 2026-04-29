@@ -7,16 +7,11 @@
           class="upload-dragger"
           drag
           multiple
-          :http-request="handleHttpRequest"
           :file-list="fileList"
-          :on-success="handleUploadSuccess"
-          :on-error="handleUploadError"
-          :on-progress="handleUploadProgress"
+          :http-request="customUpload"
           :before-upload="beforeUpload"
           :limit="20"
           :on-exceed="handleExceed"
-          :auto-upload="false"
-          ref="uploadRef"
         >
           <i class="el-icon-upload"></i>
           <div class="el-upload__text">
@@ -26,9 +21,6 @@
             支持多文件上传，单文件不超过50MB
           </div>
         </el-upload>
-        <el-button type="primary" @click="submitUpload" style="margin-top: 10px;">
-          开始上传
-        </el-button>
       </div>
 
       <el-tabs v-model="activeTab" @tab-click="handleTabClick">
@@ -161,14 +153,13 @@
 </template>
 
 <script>
-import { getMaterialList, deleteMaterial, uploadMultipleFiles } from '@/api/material'
+import { getMaterialList, deleteMaterial, uploadFile } from '@/api/material'
 
 export default {
   name: 'MaterialList',
   data() {
     return {
       loading: false,
-      uploading: false,
       activeTab: 'all',
       materialList: [],
       fileList: [],
@@ -240,22 +231,25 @@ export default {
     handleExceed(files, fileList) {
       this.$message.warning(`当前限制选择 20 个文件，本次选择了 ${files.length} 个文件，共选择了 ${files.length + fileList.length} 个文件`)
     },
-    handleUploadSuccess(response, file, fileList) {
-      if (response.code === 200) {
-        this.$message.success('上传成功')
-        this.loadData()
-      } else {
-        this.$message.error(response.message || '上传失败')
+    async customUpload(options) {
+      const { file, onSuccess, onError } = options
+      try {
+        const res = await uploadFile(file)
+        if (res.code === 200) {
+          this.$message.success('上传成功')
+          this.loadData()
+          onSuccess(res)
+        } else {
+          this.$message.error(res.message || '上传失败')
+          onError(new Error(res.message || '上传失败'))
+        }
+        this.fileList = []
+      } catch (error) {
+        console.error('上传失败:', error)
+        this.$message.error('上传失败: ' + (error.message || '未知错误'))
+        onError(error)
+        this.fileList = []
       }
-      this.fileList = []
-    },
-    handleUploadError(error, file, fileList) {
-      console.error('上传失败:', error)
-      this.$message.error('上传失败: ' + error.message)
-      this.fileList = []
-    },
-    handleUploadProgress(event, file, fileList) {
-      // 可以在这里显示上传进度
     },
     handleView(row) {
       this.currentMaterial = { ...row }
