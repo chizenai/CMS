@@ -7,7 +7,7 @@
           class="upload-dragger"
           drag
           multiple
-          :action="uploadUrl"
+          :http-request="handleHttpRequest"
           :file-list="fileList"
           :on-success="handleUploadSuccess"
           :on-error="handleUploadError"
@@ -15,6 +15,8 @@
           :before-upload="beforeUpload"
           :limit="20"
           :on-exceed="handleExceed"
+          :auto-upload="false"
+          ref="uploadRef"
         >
           <i class="el-icon-upload"></i>
           <div class="el-upload__text">
@@ -24,6 +26,9 @@
             支持多文件上传，单文件不超过50MB
           </div>
         </el-upload>
+        <el-button type="primary" @click="submitUpload" style="margin-top: 10px;">
+          开始上传
+        </el-button>
       </div>
 
       <el-tabs v-model="activeTab" @tab-click="handleTabClick">
@@ -156,13 +161,14 @@
 </template>
 
 <script>
-import { getMaterialList, deleteMaterial } from '@/api/material'
+import { getMaterialList, deleteMaterial, uploadMultipleFiles } from '@/api/material'
 
 export default {
   name: 'MaterialList',
   data() {
     return {
       loading: false,
+      uploading: false,
       activeTab: 'all',
       materialList: [],
       fileList: [],
@@ -174,8 +180,7 @@ export default {
         pageNum: 1,
         pageSize: 10,
         total: 0
-      },
-      uploadUrl: '/api/material/upload-multiple'
+      }
     }
   },
   created() {
