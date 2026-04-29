@@ -32,7 +32,7 @@
 
     <div class="toolbar">
       <el-button type="primary" @click="handleAdd">新增文章</el-button>
-      <el-button type="success" @click="handlePublish" :disabled="selectedIds.length === 0">批量发布</el-button>
+      <el-button type="warning" @click="handleSubmitBatchAudit" :disabled="selectedIds.length === 0">批量提交审核</el-button>
       <el-button type="danger" @click="handleDelete" :disabled="selectedIds.length === 0">批量删除</el-button>
     </div>
 
@@ -44,6 +44,11 @@
       <el-table-column type="selection" width="55"></el-table-column>
       <el-table-column prop="id" label="ID" width="80"></el-table-column>
       <el-table-column prop="title" label="标题" min-width="200"></el-table-column>
+      <el-table-column prop="categoryName" label="栏目" width="120">
+        <template slot-scope="scope">
+          {{ scope.row.categoryName || '-' }}
+        </template>
+      </el-table-column>
       <el-table-column prop="summary" label="摘要" min-width="200" show-overflow-tooltip></el-table-column>
       <el-table-column prop="viewCount" label="浏览量" width="100"></el-table-column>
       <el-table-column prop="status" label="状态" width="100">
@@ -54,7 +59,7 @@
         </template>
       </el-table-column>
       <el-table-column prop="createTime" label="创建时间" width="180"></el-table-column>
-      <el-table-column label="操作" width="250" fixed="right">
+      <el-table-column label="操作" width="300" fixed="right">
         <template slot-scope="scope">
           <el-button type="text" @click="handleEdit(scope.row)">编辑</el-button>
           <el-button type="text" @click="handleView(scope.row)">查看</el-button>
@@ -66,8 +71,8 @@
           <el-button
             v-if="scope.row.status === 0"
             type="text"
-            @click="handleSinglePublish(scope.row)"
-          >发布</el-button>
+            @click="handleSubmitAudit(scope.row)"
+          >提交审核</el-button>
           <el-button type="text" @click="handleSingleDelete(scope.row)">删除</el-button>
         </template>
       </el-table-column>
@@ -108,11 +113,42 @@
         <el-button type="primary" @click="submitAudit">确定</el-button>
       </span>
     </el-dialog>
+
+    <el-dialog title="查看文章" :visible.sync="viewDialogVisible" width="800px">
+      <el-descriptions :column="2" border>
+        <el-descriptions-item label="ID">{{ currentArticle.id }}</el-descriptions-item>
+        <el-descriptions-item label="标题">{{ currentArticle.title }}</el-descriptions-item>
+        <el-descriptions-item label="栏目">{{ currentArticle.categoryName }}</el-descriptions-item>
+        <el-descriptions-item label="状态">
+          <el-tag :type="getStatusType(currentArticle.status)">
+            {{ getStatusText(currentArticle.status) }}
+          </el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="浏览量">{{ currentArticle.viewCount || 0 }}</el-descriptions-item>
+        <el-descriptions-item label="排序">{{ currentArticle.sort || 0 }}</el-descriptions-item>
+        <el-descriptions-item label="创建时间">{{ currentArticle.createTime }}</el-descriptions-item>
+        <el-descriptions-item label="发布时间">{{ currentArticle.publishTime || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="摘要" :span="2">{{ currentArticle.summary || '-' }}</el-descriptions-item>
+      </el-descriptions>
+      <div v-if="currentArticle.cover" style="margin-top: 20px;">
+        <label>封面图片：</label>
+        <img :src="currentArticle.cover" style="max-width: 300px; margin-top: 10px;" />
+      </div>
+      <div v-if="currentArticle.content" style="margin-top: 20px;">
+        <label>文章内容：</label>
+        <div style="margin-top: 10px; padding: 15px; background-color: #f5f7fa; border-radius: 4px; white-space: pre-wrap;">
+          {{ currentArticle.content }}
+        </div>
+      </div>
+      <span slot="footer" class="dialog-footer">
+        <el-button @click="viewDialogVisible = false">关闭</el-button>
+      </span>
+    </el-dialog>
   </div>
 </template>
 
 <script>
-import { getArticleList, deleteArticle, publishArticle, auditArticle } from '@/api/article'
+import { getArticleList, deleteArticle, publishArticle, auditArticle, updateArticle } from '@/api/article'
 import { getCategoryList } from '@/api/category'
 
 export default {
@@ -137,7 +173,9 @@ export default {
       auditForm: {
         status: 2,
         comment: ''
-      }
+      },
+      viewDialogVisible: false,
+      currentArticle: {}
     }
   },
   created() {
@@ -160,7 +198,6 @@ export default {
           pageSize: this.pagination.pageSize,
           ...this.searchForm
         }
-        // 清除空值
         Object.keys(params).forEach(key => {
           if (params[key] === '' || params[key] === null) {
             delete params[key]
@@ -222,7 +259,45 @@ export default {
       this.$router.push(`/article/edit/${row.id}`)
     },
     handleView(row) {
-      this.$message.info('查看功能开发中')
+      this.currentArticle = { ...row }
+      const category = this.categoryList.find(c => c.id === row.categoryId)
+      this.currentArticle.categoryName = category ? category.name : '-'
+      this.viewDialogVisible = true
+    },
+    async handleSubmitAudit(row) {
+      if (row.status !== 0) {
+        this.$message.warning('只有草稿状态的文章才能提交审核')
+        return
+      }
+      try {
+        await updateArticle({ id: row.id, status: 1 })
+        this.$message.success('提交审核成功')
+        this.loadArticleList()
+      } catch (error) {
+        console.error('提交审核失败:', error)
+      }
+    },
+    handleSubmitBatchAudit() {
+      const draftIds = this.selectedIds
+      if (draftIds.length === 0) {
+        this.$message.warning('请选择草稿状态的文章')
+        return
+      }
+      this.$confirm('确定要将选中的文章提交审核吗？', '提示', {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }).then(async () => {
+        try {
+          for (const id of draftIds) {
+            await updateArticle({ id, status: 1 })
+          }
+          this.$message.success('批量提交审核成功')
+          this.loadArticleList()
+        } catch (error) {
+          console.error('批量提交审核失败:', error)
+        }
+      }).catch(() => {})
     },
     async handleSinglePublish(row) {
       try {

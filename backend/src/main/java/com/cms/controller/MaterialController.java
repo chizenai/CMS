@@ -5,10 +5,20 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.cms.common.Result;
 import com.cms.entity.Material;
 import com.cms.mapper.MaterialMapper;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/material")
@@ -16,8 +26,76 @@ public class MaterialController {
 
     private final MaterialMapper materialMapper;
 
+    @Value("${file.upload.path:uploads/}")
+    private String uploadPath;
+
+    @Value("${file.access.prefix:/uploads/}")
+    private String accessPrefix;
+
     public MaterialController(MaterialMapper materialMapper) {
         this.materialMapper = materialMapper;
+    }
+
+    @PostMapping("/upload")
+    public Result<Map<String, Object>> uploadFile(@RequestParam("file") MultipartFile file) {
+        if (file.isEmpty()) {
+            return Result.error("文件不能为空");
+        }
+
+        try {
+            String originalFilename = file.getOriginalFilename();
+            String fileExtension = originalFilename != null ? 
+                originalFilename.substring(originalFilename.lastIndexOf(".")) : "";
+            String newFileName = UUID.randomUUID().toString() + fileExtension;
+            
+            Path uploadDir = Paths.get(uploadPath);
+            if (!Files.exists(uploadDir)) {
+                Files.createDirectories(uploadDir);
+            }
+            
+            Path filePath = uploadDir.resolve(newFileName);
+            file.transferTo(filePath);
+            
+            String fileType = getFileType(fileExtension);
+            String fileUrl = accessPrefix + newFileName;
+            
+            Material material = new Material();
+            material.setName(originalFilename);
+            material.setType(fileType);
+            material.setUrl(fileUrl);
+            material.setSize(file.getSize());
+            material.setCreateTime(LocalDateTime.now());
+            material.setUpdateTime(LocalDateTime.now());
+            materialMapper.insert(material);
+            
+            Map<String, Object> result = new HashMap<>();
+            result.put("id", material.getId());
+            result.put("name", originalFilename);
+            result.put("url", fileUrl);
+            result.put("type", fileType);
+            result.put("size", file.getSize());
+            
+            return Result.success(result);
+        } catch (IOException e) {
+            e.printStackTrace();
+            return Result.error("文件上传失败: " + e.getMessage());
+        }
+    }
+
+    private String getFileType(String extension) {
+        String ext = extension.toLowerCase();
+        if (ext.equals(".jpg") || ext.equals(".jpeg") || ext.equals(".png") || 
+            ext.equals(".gif") || ext.equals(".bmp") || ext.equals(".webp")) {
+            return "image";
+        } else if (ext.equals(".mp4") || ext.equals(".avi") || ext.equals(".mov") || 
+                   ext.equals(".mkv") || ext.equals(".wmv")) {
+            return "video";
+        } else if (ext.equals(".mp3") || ext.equals(".wav") || ext.equals(".flac") || 
+                   ext.equals(".aac")) {
+            return "audio";
+        } else {
+            return "file";
+        }
     }
 
     @GetMapping("/page")

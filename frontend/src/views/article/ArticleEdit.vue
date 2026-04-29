@@ -40,10 +40,11 @@
         <el-form-item label="封面图片">
           <el-upload
             class="avatar-uploader"
-            action="/api/material"
+            action="/api/material/upload"
             :show-file-list="false"
             :on-success="handleAvatarSuccess"
             :before-upload="beforeAvatarUpload"
+            name="file"
           >
             <img v-if="form.cover" :src="form.cover" class="avatar">
             <i v-else class="el-icon-plus avatar-uploader-icon"></i>
@@ -125,8 +126,10 @@ export default {
       }
     },
     handleAvatarSuccess(res, file) {
-      if (res.code === 200) {
-        this.form.cover = URL.createObjectURL(file.raw)
+      if (res.code === 200 && res.data) {
+        this.form.cover = res.data.url
+      } else {
+        this.$message.error('上传失败')
       }
     },
     beforeAvatarUpload(file) {
