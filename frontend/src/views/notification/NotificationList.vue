@@ -104,6 +104,7 @@
 
 <script>
 import { getNotificationList, getUnreadCount, markAsRead, markAllAsRead } from '@/api/notification'
+import { EventBus } from '@/utils/eventBus'
 
 export default {
   name: 'NotificationList',
@@ -188,6 +189,7 @@ export default {
           await markAsRead(notification.id)
           notification.isRead = 1
           this.loadUnreadCount()
+          EventBus.$emit('notification-read')
         } catch (error) {
           console.error('标记已读失败:', error)
         }
@@ -199,6 +201,7 @@ export default {
         this.$message.success('已全部标记为已读')
         this.loadData()
         this.loadUnreadCount()
+        EventBus.$emit('notification-read')
       } catch (error) {
         console.error('标记已读失败:', error)
         this.$message.error('标记已读失败')
