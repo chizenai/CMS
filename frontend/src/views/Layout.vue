@@ -107,6 +107,7 @@
 <script>
 import { mapState, mapActions } from 'vuex'
 import { getUnreadCount } from '@/api/notification'
+import { EventBus } from '@/utils/eventBus'
 
 export default {
   name: 'Layout',
@@ -128,11 +129,17 @@ export default {
     this.timer = setInterval(() => {
       this.loadUnreadCount()
     }, 60000)
+    // 监听通知已读事件
+    EventBus.$on('notification-read', () => {
+      this.loadUnreadCount()
+    })
   },
   beforeDestroy() {
     if (this.timer) {
       clearInterval(this.timer)
     }
+    // 移除事件监听
+    EventBus.$off('notification-read')
   },
   methods: {
     ...mapActions(['logout']),

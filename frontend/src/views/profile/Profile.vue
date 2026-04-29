@@ -114,7 +114,7 @@ export default {
 
     return {
       activeTab: 'basic',
-      uploadUrl: process.env.VUE_APP_API_BASE_URL + '/material/upload',
+      uploadUrl: '/api/material/upload',
       basicForm: {
         nickname: '',
         avatar: '',
@@ -192,7 +192,13 @@ export default {
             await updateProfile(this.basicForm)
             this.$message.success('保存成功')
             this.loadProfile()
-            this.$store.dispatch('getUserInfo')
+            this.$store.commit('SET_USER_INFO', {
+              ...this.$store.state.userInfo,
+              nickname: this.basicForm.nickname,
+              avatar: this.basicForm.avatar,
+              email: this.basicForm.email,
+              phone: this.basicForm.phone
+            })
           } catch (error) {
             console.error('保存失败:', error)
             this.$message.error('保存失败')

@@ -175,7 +175,7 @@ export default {
         pageSize: 10,
         total: 0
       },
-      uploadUrl: process.env.VUE_APP_API_BASE_URL + '/material/upload-multiple'
+      uploadUrl: '/api/material/upload-multiple'
     }
   },
   created() {
