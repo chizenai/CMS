@@ -59,3 +59,17 @@ export function auditArticle(data) {
     data
   })
 }
+
+export function submitForAudit(id) {
+  return request({
+    url: `/article/submit/${id}`,
+    method: 'put'
+  })
+}
+
+export function withdrawFromAudit(id) {
+  return request({
+    url: `/article/withdraw/${id}`,
+    method: 'put'
+  })
+}

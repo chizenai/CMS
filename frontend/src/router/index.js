@@ -75,6 +75,42 @@ const routes = [
         name: 'Log',
         component: () => import('@/views/system/LogList'),
         meta: { title: '日志管理' }
+      },
+      {
+        path: 'menu',
+        name: 'Menu',
+        component: () => import('@/views/system/MenuList'),
+        meta: { title: '菜单管理' }
+      },
+      {
+        path: 'permission',
+        name: 'Permission',
+        component: () => import('@/views/system/PermissionList'),
+        meta: { title: '权限管理' }
+      },
+      {
+        path: 'audit/queue',
+        name: 'AuditQueue',
+        component: () => import('@/views/audit/AuditQueue'),
+        meta: { title: '待审核文章' }
+      },
+      {
+        path: 'audit/history',
+        name: 'AuditHistory',
+        component: () => import('@/views/audit/AuditHistory'),
+        meta: { title: '审核记录' }
+      },
+      {
+        path: 'notification',
+        name: 'Notification',
+        component: () => import('@/views/notification/NotificationList'),
+        meta: { title: '通知中心' }
+      },
+      {
+        path: 'profile',
+        name: 'Profile',
+        component: () => import('@/views/profile/Profile'),
+        meta: { title: '个人中心' }
       }
     ]
   }

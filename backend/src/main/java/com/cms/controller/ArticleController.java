@@ -4,9 +4,14 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.cms.common.Result;
 import com.cms.entity.Article;
+import com.cms.entity.AuditRecord;
 import com.cms.entity.Category;
+import com.cms.entity.User;
 import com.cms.mapper.ArticleMapper;
 import com.cms.mapper.CategoryMapper;
+import com.cms.service.AuditRecordService;
+import com.cms.service.UserService;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -21,10 +26,15 @@ public class ArticleController {
 
     private final ArticleMapper articleMapper;
     private final CategoryMapper categoryMapper;
+    private final AuditRecordService auditRecordService;
+    private final UserService userService;
 
-    public ArticleController(ArticleMapper articleMapper, CategoryMapper categoryMapper) {
+    public ArticleController(ArticleMapper articleMapper, CategoryMapper categoryMapper,
+                             AuditRecordService auditRecordService, UserService userService) {
         this.articleMapper = articleMapper;
         this.categoryMapper = categoryMapper;
+        this.auditRecordService = auditRecordService;
+        this.userService = userService;
     }
 
     @GetMapping("/page")
@@ -168,6 +178,64 @@ public class ArticleController {
             article.setPublishTime(LocalDateTime.now());
         }
         int result = articleMapper.updateById(article);
+        return Result.success(result > 0);
+    }
+
+    @PutMapping("/submit/{id}")
+    public Result<Boolean> submitForAudit(@PathVariable Long id, Authentication authentication) {
+        Article existingArticle = articleMapper.selectById(id);
+        if (existingArticle == null) {
+            return Result.error("文章不存在");
+        }
+        if (existingArticle.getStatus() != 0) {
+            return Result.error("只有草稿状态的文章才能提交审核");
+        }
+
+        // 更新文章状态为待审核
+        Article article = new Article();
+        article.setId(id);
+        article.setStatus(1);
+        article.setUpdateTime(LocalDateTime.now());
+        int result = articleMapper.updateById(article);
+
+        if (result > 0) {
+            // 获取当前用户信息
+            String username = authentication.getName();
+            User submitter = userService.getByUsername(username);
+            
+            // 创建审核记录
+            AuditRecord auditRecord = new AuditRecord();
+            auditRecord.setArticleId(id);
+            if (submitter != null) {
+                auditRecord.setSubmitterId(submitter.getId());
+                auditRecord.setSubmitterName(submitter.getNickname() != null ? submitter.getNickname() : submitter.getUsername());
+            } else {
+                // 默认为系统用户
+                auditRecord.setSubmitterId(1L);
+                auditRecord.setSubmitterName("系统用户");
+            }
+            auditRecordService.createAuditRecord(auditRecord);
+        }
+
+        return Result.success(result > 0);
+    }
+
+    @PutMapping("/withdraw/{id}")
+    public Result<Boolean> withdrawFromAudit(@PathVariable Long id) {
+        Article existingArticle = articleMapper.selectById(id);
+        if (existingArticle == null) {
+            return Result.error("文章不存在");
+        }
+        if (existingArticle.getStatus() != 1) {
+            return Result.error("只有待审核状态的文章才能撤回");
+        }
+
+        Article article = new Article();
+        article.setId(id);
+        article.setStatus(0);
+        article.setUpdateTime(LocalDateTime.now());
+        int result = articleMapper.updateById(article);
+
         return Result.success(result > 0);
     }
 }
