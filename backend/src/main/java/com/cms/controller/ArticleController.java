@@ -63,8 +63,15 @@ public class ArticleController {
             
             result.getRecords().forEach(article -> {
                 if (article.getCategoryId() != null) {
-                    article.setCategoryName(categoryMap.get(article.getCategoryId()));
+                    String categoryName = categoryMap.get(article.getCategoryId());
+                    article.setCategoryName(categoryName != null ? categoryName : "-");
+                } else {
+                    article.setCategoryName("-");
                 }
+            });
+        } else {
+            result.getRecords().forEach(article -> {
+                article.setCategoryName("-");
             });
         }
         
